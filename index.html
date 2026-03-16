@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Расчет себестоимости</title>
+    <script src="xlsx.full.min.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+        background: #f4f7f6;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .input-group {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 5px;
+      }
+
+      input[type="number"] {
+        width: 100px;
+        padding: 5px;
+      }
+
+      .result-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+
+      .result-table th,
+      .result-table td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: right;
+      }
+
+      button {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        cursor: pointer;
+        border-radius: 4px;
+        margin-top: 15px;
+      }
+
+      button:hover {
+        background: #218838;
+      }
+
+      .out {
+        padding-left: 30px;
+      }
+
+      .step {
+        margin-top: 20px;
+        display: none;
+      }
+
+      #extra-payments {
+        display: none;
+        flex-direction: column;
+      }
+
+      #extra-payments > span {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+      }
+
+      #costInputs {
+        display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div>
+        <h2>1. Загрузите файл</h2>
+        <input type="file" id="upload" accept=".xlsx, .xls" />
+      </div>
+      <div id="extra-payments" class="step">
+        <h2>2. Введите числа для расчета:</h2>
+        <span>
+          <span style="font-size: 14px">Реклама</span>
+          <input type="number" class="cost-input" id="advertisement" placeholder="0" />
+        </span>
+        <span>
+          <span style="font-size: 14px">Процент налога (только число)</span>
+          <input type="number" class="cost-input" id="tax" placeholder="3" />
+        </span>
+      </div>
+      <div id="costInputs" class="step">
+        <h2>3. Введите себестоимость товаров:</h2>
+        <div id="inputsContainer">
+          <div class="input-group"></div>
+        </div>
+        <button onclick="calculateTotal()">Посчитать итоги</button>
+      </div>
+      <div id="finalResult"></div>
+    </div>
+
+    <script>
+      let excelData = [];
+
+      document.getElementById("upload").addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: "array" });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          excelData = XLSX.utils.sheet_to_json(sheet);
+          const articles = [
+            ...new Set(
+              excelData
+                .filter((row) => {
+                  const pay = parseFloat(
+                    String(row["К перечислению Продавцу за реализованный Товар"]).replace(/[^\d.-]/g, ""),
+                  );
+                  return pay && pay > 0;
+                })
+                .map((row) => row["Артикул поставщика"]),
+            ),
+          ];
+
+          renderInputs(articles);
+        };
+        reader.readAsArrayBuffer(file);
+      });
+
+      function renderInputs(articles) {
+        const container = document.getElementById("inputsContainer");
+        container.innerHTML = articles.length > 0 ? "" : '<p style="color:red">Подходящих продаж не найдено.</p>';
+        articles.sort().forEach((art) => {
+          container.innerHTML += `
+                  <div class="input-group">
+                      <span style="font-size: 14px;">${art}</span>
+                      <input type="number" class="cost-input" data-art="${art}" placeholder="0">
+                  </div>
+              `;
+        });
+
+        document.getElementById("extra-payments").style.display = "flex";
+        document.getElementById("costInputs").style.display = "block";
+        document.getElementById("finalResult").innerHTML = "";
+      }
+
+      function calculateTotal() {
+        const costs = {};
+        document.querySelectorAll(".cost-input").forEach((input) => {
+          costs[input.dataset.art] = parseFloat(input.value) || 0;
+        });
+
+        let totals = {
+          cost: 0,
+          payout: 0,
+          delivery: 0,
+          penalties: 0,
+          storage: 0,
+          deductions: 0,
+          advertisement: 0,
+          taxProcent: 0,
+        };
+
+        totals.advertisement = document.getElementById("advertisement").value || 0;
+        totals.taxProcent = document.getElementById("tax").value / 100 || 0.03;
+        let salesCount = 0;
+        excelData.forEach((row) => {
+          const getVal = (key) => {
+            const val = row[key];
+            if (!val) return 0;
+            const parsed = parseFloat(
+              String(val)
+                .replace(/[^\d.-]/g, "")
+                .replace(",", "."),
+            );
+            return isNaN(parsed) ? 0 : parsed;
+          };
+
+          const payout = getVal("К перечислению Продавцу за реализованный Товар");
+          const art = row["Артикул поставщика"];
+
+          if (payout > 0) {
+            totals.payout += payout;
+            totals.cost += costs[art] || 0;
+            salesCount++;
+          }
+          totals.delivery += getVal("Услуги по доставке товара покупателю");
+          totals.penalties += getVal("Общая сумма штрафов");
+          totals.storage += getVal("Хранение");
+          totals.deductions += getVal("Удержания");
+        });
+
+        const payments =
+          totals.payout -
+          Math.abs(totals.delivery) -
+          Math.abs(totals.penalties) -
+          Math.abs(totals.storage) -
+          Math.abs(totals.deductions);
+
+        const taxAmount = Math.abs(payments * totals.taxProcent);
+        const totalIncome = Math.abs(payments - taxAmount - totals.cost - totals.advertisement);
+        const incomePercent = Math.abs((totalIncome * 100) / totals.cost);
+        const DRR = (totals.advertisement * 100) / totals.payout;
+
+        document.getElementById("finalResult").innerHTML = `
+          <div style="margin-top: 20px; padding: 20px; border-radius: 12px; background: #fff; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+              <h3 style="margin-top:0">Сводный отчет:</h3>
+              <table style="width:100%; border:none;">
+                  <tr><td>Продаж учтено:</td><td><strong>${salesCount} шт.</strong></td></tr>
+                  <tr style="color: #28a745;"><td>Сумма выплат (К перечислению):</td><td><strong>${totals.payout.toLocaleString()} т</strong></td></tr>
+                  <hr>
+                  <tr><td class="out">Доставка:</td><td><strong>${Math.round(totals.delivery).toLocaleString()} т</strong></td></tr>
+                  <tr><td class="out">Штрафы:</td><td><strong>${Math.round(totals.penalties).toLocaleString()} т</strong></td></tr>
+                  <tr><td class="out">Хранение:</td><td><strong>${Math.round(totals.storage).toLocaleString()} т</strong></td></tr>
+                  <tr><td class="out">Удержания:</td><td><strong>${Math.round(totals.deductions).toLocaleString()} т</strong></td></tr>
+                  <tr><td>Выплаты после вычета расходов:</td><td><strong>${Math.round(payments).toLocaleString()} т</strong></td></tr>
+                  <tr style="color: #d9534f;"><td>Общая себестоимость:</td><td><strong>${Math.round(totals.cost).toLocaleString()} т</strong></td></tr>
+                  <tr style="color: #d9534f;"><td>Налог:</td><td><strong>${Math.round(taxAmount).toLocaleString()} т</strong></td></tr>
+                  <tr style="color: #d9534f;"><td>Расходы на рекламу:</td><td><strong>${Math.round(totals.advertisement).toLocaleString()} т</strong></td></tr>
+                  <tr style="font-size: 1.2em; background: #f8f9fa; border-top: black 1px solid; ">
+                    <td><strong>Примерная чистая прибыль:</strong></td>
+                    <td><strong style="color: ${totalIncome > 0 ? "green" : "red"}">${Math.round(totalIncome).toLocaleString()} т</strong></td>
+                  </tr>
+                   <tr>
+                    <td><strong>Прибыль %:</strong></td>
+                    <td><strong style="color: ${incomePercent > 50 ? "green" : "red"}">${Math.round(incomePercent).toLocaleString()} %</strong></td>
+                  </tr>
+                    <tr>
+                    <td><strong>DRR %:</strong></td>
+                    <td><strong>${DRR.toLocaleString()} %</strong></td>
+                  </tr>
+              </table>
+          </div>
+      `;
+      }
+    </script>
+  </body>
+</html>
