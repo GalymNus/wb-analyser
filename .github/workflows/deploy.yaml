@@ -16,8 +16,8 @@ jobs:
 
       - name: Inject Firebase Config
         run: |
-          export NEW_LINE="const firebaseConfig = ${{ secrets.MY_FIREBASE_CONFIG }};"
-          sed -i "s|import { firebaseConfig } from \"./config.js\";|$NEW_LINE|g" index.html
+          export CONF='const firebaseConfig = ${{ secrets.FIREBASECONFIG }};'
+          sed -i "s|import { firebaseConfig } from \"./config.js\";|$CONF|g" auth.html
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
