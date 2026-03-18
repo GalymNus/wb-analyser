@@ -1,0 +1,90 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+
+  <body>
+    <div id="auth-container">
+      <h2 id="auth-title">Вход в систему</h2>
+
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="password" id="password" placeholder="Пароль" required />
+
+      <div class="buttons">
+        <button id="btnLogin">Войти</button>
+        <button id="btnReg">Регистрация</button>
+      </div>
+      <span id="statusMsg"></span>
+
+      <div id="firebaseui-auth-container"></div>
+      <button id="btnLogout" style="display: none">Выйти</button>
+      <p id="auth-status"></p>
+    </div>
+
+    <div id="myCalcContainer" style="display: none">
+      <h2>Ваш калькулятор прибыли WB</h2>
+    </div>
+    <script src="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.js"></script>
+    <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.css" />
+    <script type="module">
+      import { firebaseConfig } from "./config.js";
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+      import {
+        getAuth,
+        createUserWithEmailAndPassword,
+        signInWithEmailAndPassword,
+        signOut,
+        onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const analytics = getAnalytics(app);
+
+      const emailInp = document.getElementById("email");
+      const passInp = document.getElementById("password");
+      const btnLogin = document.getElementById("btnLogin");
+      const btnReg = document.getElementById("btnReg");
+      const btnLogout = document.getElementById("btnLogout");
+      const statusMsg = document.getElementById("statusMsg");
+      const calcContainer = document.getElementById("myCalcContainer");
+
+      btnReg.onclick = () => {
+        createUserWithEmailAndPassword(auth, emailInp.value, passInp.value).catch(
+          (err) => (statusMsg.innerText = "Ошибка: " + err.message),
+        );
+      };
+
+      btnLogin.onclick = () => {
+        signInWithEmailAndPassword(auth, emailInp.value, passInp.value).catch(
+          (err) => (statusMsg.innerText = "Ошибка: " + err.message),
+        );
+      };
+
+      btnLogout.onclick = () => signOut(auth);
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          calcContainer.style.display = "block";
+          btnLogout.style.display = "inline-block";
+          btnLogin.style.display = "none";
+          btnReg.style.display = "none";
+          emailInp.style.display = "none";
+          passInp.style.display = "none";
+          statusMsg.innerText = "Вы вошли как: " + user.email;
+        } else {
+          calcContainer.style.display = "none";
+          btnLogout.style.display = "none";
+          btnLogin.style.display = "inline-block";
+          btnReg.style.display = "inline-block";
+          emailInp.style.display = "inline-block";
+          passInp.style.display = "inline-block";
+          statusMsg.innerText = "Пожалуйста, авторизуйтесь для доступа к расчетам";
+        }
+      });
+    </script>
+  </body>
+</html>
