@@ -16,7 +16,7 @@ jobs:
 
       - name: Inject Firebase Config
         env:
-          DATA: ${{ secrets.API_KEY }}
+          DATA: ${{ secrets.FIREBASE_CONFIG }}
         run: |
           [[ -z "$DATA" ]] && { echo "СЕКРЕТ ВСЕ ЕЩЕ ПУСТОЙ"; exit 1; }
 
