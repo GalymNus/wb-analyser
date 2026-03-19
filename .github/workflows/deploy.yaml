@@ -21,7 +21,7 @@ jobs:
 
         run: |
           echo $DATA
-          sed -i "s|.*import { firebaseConfig } from \"./config.js\";|const firebaseConfig = $DATA;|" auth.html
+          perl -i "s|.*import { firebaseConfig } from \"./config.js\";|const firebaseConfig = $DATA;|" auth.html
           echo "--- Результат замены ---"
           grep "const firebaseConfig =" auth.html
       - name: Deploy to GitHub Pages
