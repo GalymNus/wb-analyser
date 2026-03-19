@@ -20,7 +20,7 @@ jobs:
           DATA: ${{ secrets.FIREBASE_CONFIG }}
         run: |
           echo $DATA
-          sed -i "s|.*import { firebaseConfig } from \"./config.js\";|replaced
+          sed -i "s|.*import { firebaseConfig } from \"./config.js\";|replaced|" auth.html
           # const firebaseConfig = $DATA;|" auth.html
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
