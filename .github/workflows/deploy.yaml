@@ -16,11 +16,11 @@ jobs:
 
       - name: Inject Firebase Config
         run: |
-          sed -i 's|.*import { firebaseConfig } from "./config.js";|const firebaseConfig = ${{ secrets.FIREBASECONFIG }};|' auth.html
-          grep "const firebaseConfig = ${{ secrets.FIREBASECONFIG }}" auth.html
+          sed -i 's|.*import { firebaseConfig } from "./config.js";|const firebaseConfig = ${{ secrets.APIKEY }};|' auth.html
+          grep "const firebaseConfig = ${{ secrets.APIKEY }}" auth.html
 
         env:
-          FIREBASECONFIG: ${{ secrets.FIREBASECONFIG }}
+          APIKEY: ${{ secrets.APIKEY }}
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
