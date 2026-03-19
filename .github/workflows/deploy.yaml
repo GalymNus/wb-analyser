@@ -15,11 +15,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Inject Firebase Config
+        env:
+          DATA: ${{ secrets.FIREBASE_CONFIG }}
         run: |
-          sed -i 's|.*import { firebaseConfig } from "./config.js";|const firebaseConfig = "HELLO_WORLD";|' auth.html
-          echo "--- Результат работы sed (первые 40 строк): ---"
-          head -n 40 auth.html
-
+          sed -i 's|.*import { firebaseConf ig } from "./config.js";|      const firebaseConfig = "$DATA";|' auth.html
+          if [ -n "$DATA" ]; then echo "Секрет получен!"; else echo "СЕКРЕТ ВСЕ ЕЩЕ ПУСТОЙ"; exit 1; fi
+          grep "const firebaseConfig =" auth.html
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
