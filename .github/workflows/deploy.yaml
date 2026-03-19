@@ -16,12 +16,12 @@ jobs:
 
       - name: Inject Firebase Config
         env:
-          API_KEY: ${{ secrets.APIKEY }}
+          DATA: ${{ secrets.API_KEY }}
         run: |
-          if [ -z "$API_KEY" ]; then echo "SECRET IS EMPTY"; exit 1; fi
-          sed -i "s|.*import { firebaseConfig } from .*config.js.*;|const firebaseConfig = $MY_API_KEY;|" auth.html
-          echo "Resulting line:"
-          grep "const firebaseConfig =" auth.html
+          [[ -z "$DATA" ]] && { echo "СЕКРЕТ ВСЕ ЕЩЕ ПУСТОЙ"; exit 1; }
+
+          # Заменяем строку
+          sed -i "s|.*import { firebaseConfig }.*|const firebaseConfig = $DATA;|" auth.html
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
