@@ -10,14 +10,15 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: github-pages
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Inject Firebase Config
+        environment: github-pages
         env:
-          DATA: ${{ secrets.FIREBASE_CONFIG }}
+          DATA: ${{ secrets.APIKEY }}
+
         run: |
           echo $DATA
           sed -i "s|.*import { firebaseConfig } from \"./config.js\";|const firebaseConfig = $DATA;|" auth.html
