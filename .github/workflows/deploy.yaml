@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy to GitHub Pages and Replace
 
 on:
   push:
@@ -18,6 +18,8 @@ jobs:
         run: |
           export CONF='const firebaseConfig = ${{ secrets.FIREBASECONFIG }};'
           sed -i "s|[[:space:]]*import { firebaseConfig } from [\"']./config.js[\"'];|$CONF|g" auth.html
+        env:
+          FIREBASECONFIG: ${{ secrets.FIREBASECONFIG }}
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
