@@ -3,6 +3,117 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
+    <style>
+      :root {
+        --wb-purple: #481173;
+        --wb-magenta: #cb11ab;
+        --wb-light-gray: #f6f6f9;
+        --wb-text: #2b2b2b;
+      }
+
+      body {
+        font-family: "Roboto", sans-serif;
+        background-color: var(--wb-light-gray);
+        color: var(--wb-text);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+      }
+
+      #auth-container {
+        background: white;
+        padding: 40px;
+        border-radius: 24px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+      }
+
+      h2 {
+        color: var(--wb-purple);
+        font-weight: 700;
+        margin-bottom: 30px;
+      }
+
+      input {
+        width: 100%;
+        padding: 14px;
+        margin-bottom: 15px;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        box-sizing: border-box;
+        font-size: 16px;
+        transition: border-color 0.3s;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: var(--wb-magenta);
+      }
+
+      .buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      button {
+        width: 100%;
+        padding: 14px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          opacity 0.3s,
+          transform 0.1s;
+      }
+
+      #btnLogin {
+        background: linear-gradient(90deg, #481173 0%, #cb11ab 100%);
+        color: white;
+      }
+
+      #btnReg {
+        background-color: transparent;
+        color: var(--wb-magenta);
+        border: 1px solid var(--wb-magenta);
+      }
+
+      #btnLogout {
+        background-color: #ff4d4d;
+        color: white;
+        margin-top: 20px;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      button:active {
+        transform: scale(0.98);
+      }
+
+      #statusMsg {
+        display: block;
+        margin-top: 15px;
+        font-size: 14px;
+        color: #666;
+      }
+
+      /* Стиль для калькулятора, когда он появится */
+      #myCalcContainer {
+        background: white;
+        padding: 30px;
+        border-radius: 24px;
+        margin-top: 20px;
+        border: 2px solid var(--wb-purple);
+      }
+    </style>
   </head>
 
   <body>
