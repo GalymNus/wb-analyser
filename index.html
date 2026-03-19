@@ -15,25 +15,23 @@
       </div>
       <div id="extra-payments" class="step">
         <h2>2. Введите числа для расчета:</h2>
-        <span>
-          <span style="font-size: 14px">Реклама</span>
+        <div class="input-row">
+          <span class="text">Реклама</span>
           <input type="number" class="cost-input" id="advertisement" placeholder="0" />
-        </span>
-        <span>
-          <span style="font-size: 14px">Процент налога (только число)</span>
+        </div>
+        <div class="input-row">
+          <span class="text">Процент налога (только число)</span>
           <input type="number" class="cost-input" id="tax" placeholder="3" />
-        </span>
+        </div>
       </div>
       <div id="costInputs" class="step">
         <h2>3. Введите себестоимость товаров:</h2>
-        <div id="inputsContainer">
-          <div class="input-group"></div>
-        </div>
+        <div id="inputsContainer"></div>
         <button onclick="calculateTotal()">Посчитать итоги</button>
       </div>
-      <div id="finalResult"></div>
     </div>
     <a class="authLink" href="auth.html">Авторизация</a>
+    <div id="finalResult"></div>
     <script>
       let excelData = [];
       const mem = {
@@ -74,14 +72,16 @@
 
       function renderInputs(articles) {
         const container = document.getElementById("inputsContainer");
-        container.innerHTML = articles.length > 0 ? "" : '<p style="color:red">Подходящих продаж не найдено.</p>';
+        container.innerHTML =
+          articles.length > 0 ? "" : '<p style="color:red; text-align:center;">Подходящих продаж не найдено.</p>';
+
         articles.sort().forEach((art) => {
           container.innerHTML += `
-                        <div class="input-group">
-                            <span style="font-size: 14px;">${art}</span>
-                            <input type="number" class="cost-input" data-art="${art}" value=${mem[art] || 0}>
-                        </div>
-                    `;
+            <div class="input-row">
+                <span class="text">${art}</span>
+                <input type="number" class="cost-input art-cost" data-art="${art}" value="${mem[art] || 0}">
+            </div>
+          `;
         });
 
         document.getElementById("extra-payments").style.display = "flex";
@@ -150,39 +150,37 @@
         const DRR = (totals.advertisement * 100) / totals.priceWithSale;
 
         document.getElementById("finalResult").innerHTML = `
-                <div style="margin-top: 20px; padding: 20px; border-radius: 12px; background: #fff; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                    <h3 style="margin-top:0">Сводный отчет:</h3>
-                    <table style="width:100%; border:none;">
-                        <tr><td>Продаж учтено:</td><td><strong>${salesCount} шт.</strong></td></tr>
-                        <tr style="color: #28a745;"><td>Сумма выплат:</td><td><strong>${totals.priceWithSale.toLocaleString()} т</strong></td></tr>
-                        <tr style="color: #d9534f;"><td>Разница выплат:</td><td><strong>${Math.abs(totals.payout - totals.priceWithSale).toLocaleString()} т</strong></td></tr>
-                        <tr style="color: #28a745;"><td>Сумма выплат (К перечислению):</td><td><strong>${totals.payout.toLocaleString()} т</strong></td></tr>
-                        <hr>
-                        <tr><td class="out">Доставка:</td><td><strong>${Math.round(totals.delivery).toLocaleString()} т</strong></td></tr>
-                        <tr><td class="out">Штрафы:</td><td><strong>${Math.round(totals.penalties).toLocaleString()} т</strong></td></tr>
-                        <tr><td class="out">Хранение:</td><td><strong>${Math.round(totals.storage).toLocaleString()} т</strong></td></tr>
-                        <tr><td class="out">Удержания:</td><td><strong>${Math.round(totals.deductions).toLocaleString()} т</strong></td></tr>
-                        <tr><td>Выплаты после вычета расходов:</td><td><strong>${Math.round(payments).toLocaleString()} т</strong></td></tr>
-                        <tr style="color: #d9534f;"><td>Общая себестоимость:</td><td><strong>${Math.round(totals.cost).toLocaleString()} т</strong></td></tr>
-                        <tr style="color: #d9534f;"><td>Налог:</td><td><strong>${Math.round(taxAmount).toLocaleString()} т</strong></td></tr>
-                        <tr style="color: #d9534f;"><td>Расходы на рекламу:</td><td><strong>${Math.round(totals.advertisement).toLocaleString()} т</strong></td></tr>
-                        <tr style="font-size: 1.2em; background: #f8f9fa; border-top: black 1px solid; ">
-                          <td><strong>Примерная чистая прибыль:</strong></td>
-                          <td><strong style="color: ${totalIncome > 0 ? "green" : "red"}">${Math.round(totalIncome).toLocaleString()} т</strong></td>
+                <div class="container">
+                    <h3>📊 Сводный отчет:</h3>
+                    <table class="result-table">
+                        <tr><td>Продаж учтено:</td><td>${salesCount} шт.</td></tr>
+                        <tr class="positive"><td>Сумма выплат:</td><td>${totals.priceWithSale.toLocaleString()} т</td></tr>
+                        <tr class="negative"><td>Разница выплат:</td><td>${Math.abs(totals.payout - totals.priceWithSale).toLocaleString()} т</td></tr>
+                        <tr class="positive"><td>Сумма выплат (К перечислению):</td><td>${totals.payout.toLocaleString()} т</td></tr>
+                        <tr class="negative"><td>Доставка:</td><td>${Math.round(totals.delivery).toLocaleString()} т</td></tr>
+                        <tr class="negative"><td>Штрафы:</td><td>${Math.round(totals.penalties).toLocaleString()} т</td></tr>
+                        <tr class="negative"><td>Хранение:</td><td>${Math.round(totals.storage).toLocaleString()} т</td></tr>
+                        <tr class="negative"><td>Удержания:</td><td>${Math.round(totals.deductions).toLocaleString()} т</td></tr>
+                        <tr><td>Выплаты после вычета расходов:</td><td>${Math.round(payments).toLocaleString()} т</td></tr>
+                        <tr class="negative"><td>Общая себестоимость:</td><td>${Math.round(totals.cost).toLocaleString()} т</td></tr>
+                        <tr class="negative"><td>Налог:</td><td>${Math.round(taxAmount).toLocaleString()} т</td></tr>
+                        <tr class="negative"><td>Расходы на рекламу:</td><td>${Math.round(totals.advertisement).toLocaleString()} т</td></tr>
+                        <tr class="table-line total-row ${incomePercent > 50 ? "positive" : "negative"}">
+                          <td>Примерная чистая прибыль:</td>
+                          <td>${Math.round(totalIncome).toLocaleString()} т</td>
                         </tr>
-                         <tr>
-                          <td><strong>Прибыль %:</strong></td>
-                          <td><strong style="color: ${incomePercent > 50 ? "green" : "red"}">${Math.round(incomePercent).toLocaleString()} %</strong></td>
+                         <tr class="total-row ${incomePercent > 50 ? "positive" : "negative"}">
+                          <td>Прибыль %:</td>
+                          <td>${Math.round(incomePercent).toLocaleString()} %</td>
                         </tr>
                           <tr>
-                          <td><strong>DRR %:</strong></td>
-                          <td><strong>${DRR.toLocaleString()} %</strong></td>
+                          <td>DRR %:</td>
+                          <td>${DRR.toLocaleString()} %</td>
                         </tr>
                     </table>
                 </div>
             `;
       }
     </script>
-    <script type="module"></script>
   </body>
 </html>
