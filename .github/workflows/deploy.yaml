@@ -20,10 +20,12 @@ jobs:
           DATA: ${{ secrets.APIKEY }}
 
         run: |
-          echo $DATA
-          perl -i "s|.*import { firebaseConfig } from \"./config.js\";|const firebaseConfig = $DATA;|" auth.html
-          echo "--- Результат замены ---"
-          grep "const firebaseConfig =" auth.html
+          echo "$DATA" > firebase_secret.json
+          perl -i -0777 -pe '
+            BEGIN { open $f, "<", "firebase_secret.json"; $secret = do { local $/; <$f> }; }
+            s|.*import \{ firebaseConfig \} from "./config.js";|const firebaseConfig = $secret;|g
+          ' auth.html
+          rm firebase_secret.json
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
