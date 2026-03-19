@@ -19,7 +19,7 @@ jobs:
         env:
           DATA: ${{ secrets.FIREBASE_CONFIG }}
         run: |
-          sed -i 's|.*import { firebaseConf ig } from "./config.js";|      const firebaseConfig = "$DATA";|' auth.html
+          sed -i 's|.*import { firebaseConf ig } from "./config.js";|const firebaseConfig = "$DATA";|' auth.html
           if [ -n "$DATA" ]; then echo "Секрет получен!"; else echo "СЕКРЕТ ВСЕ ЕЩЕ ПУСТОЙ"; exit 1; fi
           grep "const firebaseConfig =" auth.html
       - name: Deploy to GitHub Pages
