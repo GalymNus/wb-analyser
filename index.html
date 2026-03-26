@@ -34,14 +34,22 @@
     <div id="finalResult"></div>
     <script>
       let excelData = [];
-      const mem = {
-        "5в1": 1100,
-        "6в1": 1100,
-        анураг: 925,
-        гронерия: 750,
-        индивидуал: 850,
-        "новый индив": 850,
-      };
+      const mem = {};
+      let openedSpoilers = new Set();
+
+      function toggleSpoiler(checkbox) {
+        const block = checkbox.closest(".product-block");
+        const art = block.dataset.art;
+        const spoiler = block.querySelector(".spoiler");
+
+        if (checkbox.checked) {
+          spoiler.style.display = "block";
+          openedSpoilers.add(art);
+        } else {
+          spoiler.style.display = "none";
+          openedSpoilers.delete(art);
+        }
+      }
       document.getElementById("upload").addEventListener("change", function (e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -65,23 +73,113 @@
             ),
           ];
 
-          renderInputs(articles);
+          renderCostInputs(articles);
         };
         reader.readAsArrayBuffer(file);
       });
+      const defaultCosts = [
+        { name: "Кол-во", value: 2000, isSystem: true },
+        // { name: "Цена (Китай)", value: 1500000, isSystem: false },
+        // { name: "Логистика", value: 80000, isSystem: false },
+        // { name: "Растаможка 26%", value: 390000, isSystem: false },
+        // { name: "Брокеры", value: 60000, isSystem: false },
+        // { name: "Доставка (КЗ)", value: 32000, isSystem: false },
+        // { name: "Стикеры", value: 2500, isSystem: false },
+        // { name: "Коробки", value: 6400, isSystem: false },
+        // { name: "Скотч", value: 1200, isSystem: false },
+        // { name: "Кур. пакеты", value: 20000, isSystem: false },
+        // { name: "ФФ (Фулфилмент)", value: 60000, isSystem: false },
+        // { name: "Инфографика", value: 15000, isSystem: false },
+      ];
 
-      function renderInputs(articles) {
+      function addNewCostKey(button) {
+        const row = button.closest(".cost-mgmt-container");
+        const input = row.querySelector(".new-cost-input");
+        const name = input.value.trim();
+
+        if (!name) return alert("Введите название");
+
+        if (!defaultCosts.find((i) => i.name === name)) {
+          defaultCosts.push({ name: name, value: 0, isSystem: false });
+        }
+
+        Object.keys(mem).forEach((art) => {
+          if (Array.isArray(mem[art]) && !mem[art].find((i) => i.name === name)) {
+            mem[art].push({ name: name, value: 0, isSystem: false });
+          }
+        });
+
+        const currentArticles = Array.from(document.querySelectorAll(".product-block")).map((el) => el.dataset.art);
+        renderCostInputs(currentArticles);
+      }
+
+      function renderCostInputs(articles) {
         const container = document.getElementById("inputsContainer");
-        container.innerHTML =
-          articles.length > 0 ? "" : '<p style="color:red; text-align:center;">Подходящих продаж не найдено.</p>';
-
+        container.innerHTML = articles.length > 0 ? "" : "<p>Нет данных</p>";
         articles.sort().forEach((art) => {
+          if (!mem[art] || !Array.isArray(mem[art])) {
+            mem[art] = defaultCosts.map((item) => ({ ...item }));
+          }
+
+          const currentCosts = mem[art];
+          const isOpen = openedSpoilers.has(art);
+
+          const qtyObj = currentCosts.find((i) => i.isSystem);
+          const itemCount = qtyObj ? qtyObj.value : 1;
+
+          const costSum = currentCosts
+            .filter((i) => !i.isSystem)
+            .reduce((acc, cur) => acc + (Number.parseFloat(cur.value) || 0), 0);
+
+          const costPerUnit = (costSum / (itemCount || 1)).toFixed(2);
           container.innerHTML += `
-            <div class="input-row">
-                <span class="text">${art}</span>
-                <input type="number" class="cost-input art-cost" data-art="${art}" value="${mem[art] || 0}">
-            </div>
-          `;
+              <div class="product-block" data-art="${art}">
+                  <div class="input-row">
+                      <span class="text">${art}</span>
+                      <div class="controls-wrapper">
+                          <label class="switch-label">
+                              Расчитать
+                              <input type="checkbox" class="toggle-details" onchange="toggleSpoiler(this)" ${isOpen ? "checked" : ""}>
+                          </label>
+                          <input type="number" class="cost-input art-cost" data-art="${art}" value="${0}">
+                      </div>
+                  </div>
+                  <div class="spoiler" style="display: ${isOpen ? "block" : "none"};">
+                    <table class="costTable">
+                        <tr class="s-field"><th>Наименование</th><th>Сумма</th><th>Штука</th></tr>
+                        ${currentCosts
+                          .map(
+                            (item) => `
+                            <tr class="s-field">
+                                <td>${item.name}</td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    name="${item.name}"
+                                    class="s-input"
+                                    value="${item.value}"
+                                    oninput="calcSubtotal(this)">
+                                </td>
+                                <td class="unit-val">${item.isSystem ? "—" : (item.value / itemCount).toFixed(2)}</td>
+                            </tr>
+                        `,
+                          )
+                          .join("")}
+                    </table>
+                    <div class="cost-mgmt-container">
+                        <h4 class="cost-mgmt-title">Добавить общую статью расхода</h4>
+                        <div class="new-cost-row">
+                            <input type="text" class="new-cost-input" name="new-cost-name" placeholder="Название (напр. Маркировка)">
+                            <button type="button" class="btn-add-cost" onclick="addNewCostKey(this)">+ Добавить</button>
+                        </div>
+                    </div>
+
+                    <div class="spoiler-footer">
+                        Итого: <strong class="subtotal-display-total">${costSum}</strong> т |
+                        Итого за единицу: <strong class="subtotal-display-unit">${(costSum / itemCount).toFixed(2)}</strong> т.
+                    </div>
+                  </div>
+              </div>`;
         });
 
         document.getElementById("extra-payments").style.display = "flex";
@@ -89,6 +187,46 @@
         document.getElementById("finalResult").innerHTML = "";
       }
 
+      function calcCostSum(values) {
+        return values.filter((field) => field.name != "Кол-во").reduce((acc, cur) => acc + (cur.value || 0), 0);
+      }
+
+      function calcSubtotal(input) {
+        const productBlock = input.closest(".product-block");
+        const art = productBlock.dataset.art;
+        const fieldName = input.name;
+        const newVal = Number.parseFloat(input.value) || 0;
+
+        // 1. Обновляем данные только в массиве этого конкретного артикула
+        const targetItem = mem[art].find((i) => i.name === fieldName);
+        if (targetItem) targetItem.value = newVal;
+
+        // 2. Считаем итоги только для ЭТОГО товара
+        const qtyObj = mem[art].find((i) => i.isSystem);
+        const quantity = qtyObj ? Number.parseFloat(qtyObj.value) || 1 : 1;
+
+        const totalMoney = mem[art]
+          .filter((i) => !i.isSystem)
+          .reduce((acc, cur) => acc + (Number.parseFloat(cur.value) || 0), 0);
+
+        const perUnit = (totalMoney / quantity).toFixed(2);
+
+        // 3. Обновляем DOM только внутри текущего блока
+        productBlock.querySelectorAll(".s-field").forEach((row) => {
+          const rowInput = row.querySelector(".s-input");
+          const unitCell = row.querySelector(".unit-val");
+          if (rowInput && unitCell) {
+            const rowItem = mem[art].find((i) => i.name === rowInput.name);
+            if (rowItem && !rowItem.isSystem) {
+              unitCell.textContent = (rowItem.value / quantity).toFixed(2);
+            }
+          }
+        });
+
+        productBlock.querySelector(".subtotal-display-total").textContent = totalMoney;
+        productBlock.querySelector(".subtotal-display-unit").textContent = perUnit;
+        productBlock.querySelector(".art-cost").value = perUnit;
+      }
       function calculateTotal() {
         const costs = {};
         document.querySelectorAll(".cost-input").forEach((input) => {
