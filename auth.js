@@ -1,4 +1,13 @@
-import { firebaseConfig } from "./config.js";
+const firebaseConfig = {
+  "apiKey": "AIzaSyCaho0PsOQtT3qboSVdhV4mdEiGk1JOFg4",
+  "authDomain": "wb-analyser.firebaseapp.com",
+  "projectId": "wb-analyser",
+  "storageBucket": "wb-analyser.firebasestorage.app",
+  "messagingSenderId": "247021047917",
+  "appId": "1:247021047917:web:0a5fafb3c922e2cb462f64",
+  "measurementId": "G-5GH20RFFTD"
+}
+;
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
 import {
