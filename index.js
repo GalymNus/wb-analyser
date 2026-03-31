@@ -1,0 +1,329 @@
+let excelData = [];
+const mem = {};
+
+const calcContainer = document.getElementById("calcContainer");
+
+export const addContainer = () => {
+  calcContainer.innerHTML = `
+    <div class="container shadow-deep">
+    <div>
+    <h2>1. Загрузите файл</h2>
+    <div class="upload-wrapper">
+      <input type="file" id="upload" accept=".xlsx, .xls" class="hidden-input" />
+      <label for="upload" class="custom-file-button">
+        📥 Загрузить файл 
+      </label>
+    </div>
+    </div>
+    <div id="extra-payments" class="step">
+    <h2>2. Введите числа для расчета:</h2>
+    <div class="input-row shadow-medium">
+    <span class="text">Реклама</span>
+    <input type="number" class="cost-input" id="advertisement" placeholder="0" />
+    </div>
+    <div class="input-row shadow-medium">
+    <span class="text">Процент налога (только число)</span>
+    <input type="number" class="cost-input" id="tax" placeholder="3" />
+    </div>
+    </div>
+    <div id="costInputs" class="step">
+    <h2>3. Введите себестоимость товаров:</h2>
+    <div id="inputsContainer"></div>
+    <button class="calculate-button" onclick="calculateTotal()">Посчитать итоги</button>
+    </div>
+    </div>`;
+  const uploader = document.getElementById("upload");
+  uploader.addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      excelData = XLSX.utils.sheet_to_json(sheet);
+      const articles = [
+        ...new Set(
+          excelData
+            .filter((row) => {
+              const pay = parseFloat(
+                String(row["К перечислению Продавцу за реализованный Товар"]).replace(/[^\d.-]/g, ""),
+              );
+              return pay && pay > 0;
+            })
+            .map((row) => row["Артикул поставщика"]),
+        ),
+      ];
+
+      renderCostInputs(articles);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+const defaultCosts = [
+  { name: "Кол-во", value: 2000, isSystem: true },
+  { name: "Цена (Китай)", value: 1500000, isSystem: false },
+  { name: "Логистика", value: 80000, isSystem: false },
+  { name: "Растаможка 26%", value: 390000, isSystem: false },
+  { name: "Брокеры", value: 60000, isSystem: false },
+  { name: "Доставка (КЗ)", value: 32000, isSystem: false },
+  { name: "Стикеры", value: 2500, isSystem: false },
+  { name: "Коробки", value: 6400, isSystem: false },
+  { name: "Скотч", value: 1200, isSystem: false },
+  { name: "Кур. пакеты", value: 20000, isSystem: false },
+  { name: "ФФ (Фулфилмент)", value: 60000, isSystem: false },
+  { name: "Инфографика", value: 15000, isSystem: false },
+];
+
+document.addNewCostKey = (button) => {
+  const row = button.closest(".cost-mgmt-container");
+  const input = row.querySelector(".new-cost-input");
+  const name = input.value.trim();
+
+  if (!name) return alert("Введите название");
+
+  if (!defaultCosts.find((i) => i.name === name)) {
+    defaultCosts.push({ name: name, value: 0, isSystem: false });
+  }
+
+  Object.keys(mem).forEach((art) => {
+    if (Array.isArray(mem[art]) && !mem[art].find((i) => i.name === name)) {
+      mem[art].push({ name: name, value: 0, isSystem: false });
+    }
+  });
+
+  const currentArticles = Array.from(document.querySelectorAll(".product-block")).map((el) => el.dataset.art);
+  renderCostInputs(currentArticles);
+};
+
+const openedSpoilers = new Set();
+
+window.toggleSpoiler = function (checkbox) {
+  const productBlock = checkbox.closest(".product-block");
+  const art = productBlock.getAttribute("data-art"); // Получаем артикул
+  const spoiler = productBlock.querySelector(".spoiler-content");
+
+  if (checkbox.checked) {
+    spoiler.classList.add("is-open");
+    openedSpoilers[art] = true;
+  } else {
+    spoiler.classList.remove("is-open");
+    delete openedSpoilers[art];
+  }
+  localStorage.setItem("openedSpoilers", JSON.stringify(openedSpoilers));
+};
+
+function renderCostInputs(articles) {
+  const container = document.getElementById("inputsContainer");
+  container.innerHTML = articles.length > 0 ? "" : "<p>Нет данных</p>";
+
+  articles.sort().forEach((art) => {
+    if (!mem[art] || !Array.isArray(mem[art])) {
+      mem[art] = defaultCosts.map((item) => ({ ...item }));
+    }
+
+    const currentCosts = mem[art];
+    const isOpen = openedSpoilers[art] === true;
+
+    const qtyObj = currentCosts.find((i) => i.isSystem);
+    const itemCount = qtyObj ? qtyObj.value : 1;
+
+    const costSum = currentCosts
+      .filter((i) => !i.isSystem)
+      .reduce((acc, cur) => acc + (Number.parseFloat(cur.value) || 0), 0);
+
+    container.innerHTML += `
+<div class="product-block shadow-medium" data-art="${art}">
+  <div class="input-row">
+    <span class="text">${art}</span>
+    <div class="controls-wrapper">
+        <label class="switch-label">
+            Рассчитать
+            <input type="checkbox" class="toggle-details" onchange="toggleSpoiler(this)" ${isOpen ? "checked" : ""}>
+        </label>
+        <input type="number" class="cost-input art-cost" data-art="${art}" value="0">
+    </div>
+  </div>
+  <div class="spoiler-content ${isOpen ? "is-open" : ""}">
+    <div class="spoiler-inner">
+      <div class="spoiler-body">
+        <table class="costTable">
+          <tr class="s-field">
+            <th>Наименование</th>
+            <th>Сумма</th>
+            <th>Штука</th>
+          </tr>
+          ${currentCosts
+            .map(
+              (item) => `
+            <tr class="s-field">
+                <td>${item.name}</td>
+                <td class="total-cost">
+                    <input type="number" name="${item.name}" class="s-input" value="${item.value}"
+                        oninput="calcSubtotal(this)">
+                </td>
+                <td class="unit-val">${item.isSystem ? "—" : (item.value / itemCount).toFixed(2)}</td>
+            </tr>
+          `,
+            )
+            .join("")}
+        </table>
+        <div class="cost-mgmt-container">
+            <h4 class="cost-mgmt-title">Добавить общую статью расхода</h4>
+            <div class="new-cost-row">
+                <input type="text" class="new-cost-input" name="new-cost-name"
+                    onkeypress="if(event.key === 'Enter') { this.nextElementSibling.click(); }"
+                    placeholder="Название (напр. Маркировка)">
+                <button type="button" class="btnAddCost" onclick="addNewCostKey(this)">+ Добавить</button>
+            </div>
+        </div>
+
+        <div class="spoiler-footer">
+            Итого: <strong class="subtotal-display-total">${costSum}</strong> т |
+            Итого за единицу: <strong class="subtotal-display-unit">${(costSum / itemCount).toFixed(2)}</strong> т.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+  });
+
+  document.getElementById("extra-payments").style.display = "flex";
+  document.getElementById("costInputs").style.display = "block";
+  document.getElementById("finalResult").innerHTML = "";
+}
+
+document.calcSubtotal = (input) => {
+  const productBlock = input.closest(".product-block");
+  const art = productBlock.dataset.art;
+  const fieldName = input.name;
+  const newVal = Number.parseFloat(input.value) || 0;
+
+  const targetItem = mem[art].find((i) => i.name === fieldName);
+  if (targetItem) targetItem.value = newVal;
+
+  const qtyObj = mem[art].find((i) => i.isSystem);
+  const quantity = qtyObj ? Number.parseFloat(qtyObj.value) || 1 : 1;
+
+  const totalMoney = mem[art]
+    .filter((i) => !i.isSystem)
+    .reduce((acc, cur) => acc + (Number.parseFloat(cur.value) || 0), 0);
+
+  const perUnit = (totalMoney / quantity).toFixed(2);
+
+  productBlock.querySelectorAll(".s-field").forEach((row) => {
+    const rowInput = row.querySelector(".s-input");
+    const unitCell = row.querySelector(".unit-val");
+    if (rowInput && unitCell) {
+      const rowItem = mem[art].find((i) => i.name === rowInput.name);
+      if (rowItem && !rowItem.isSystem) {
+        unitCell.textContent = (rowItem.value / quantity).toFixed(2);
+      }
+    }
+  });
+
+  productBlock.querySelector(".subtotal-display-total").textContent = totalMoney;
+  productBlock.querySelector(".subtotal-display-unit").textContent = perUnit;
+  productBlock.querySelector(".art-cost").value = perUnit;
+};
+window.calculateTotal = () => {
+  const costs = {};
+  document.querySelectorAll(".cost-input").forEach((input) => {
+    costs[input.dataset.art] = parseFloat(input.value) || 0;
+  });
+
+  let totals = {
+    cost: 0,
+    payout: 0,
+    delivery: 0,
+    penalties: 0,
+    storage: 0,
+    priceWithSale: 0,
+    deductions: 0,
+    advertisement: 0,
+    taxProcent: 0,
+  };
+
+  totals.advertisement = document.getElementById("advertisement").value || 0;
+  totals.taxProcent = document.getElementById("tax").value / 100 || 0.03;
+  let salesCount = 0;
+  excelData.forEach((row) => {
+    const getVal = (key) => {
+      const val = row[key];
+      if (!val) return 0;
+      const parsed = parseFloat(
+        String(val)
+          .replace(/[^\d.-]/g, "")
+          .replace(",", "."),
+      );
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const payout = getVal("К перечислению Продавцу за реализованный Товар");
+    const art = row["Артикул поставщика"];
+
+    if (payout > 0) {
+      totals.payout += payout;
+      totals.cost += costs[art] || 0;
+      salesCount++;
+    }
+    totals.delivery += getVal("Услуги по доставке товара покупателю");
+    totals.penalties += getVal("Общая сумма штрафов");
+    totals.storage += getVal("Хранение");
+    totals.priceWithSale += getVal("Цена розничная с учетом согласованной скидки");
+    totals.deductions += getVal("Удержания");
+  });
+
+  const payments =
+    totals.payout -
+    Math.abs(totals.delivery) -
+    Math.abs(totals.penalties) -
+    Math.abs(totals.storage) -
+    Math.abs(totals.deductions);
+
+  const taxAmount = Math.abs(payments * totals.taxProcent);
+  const totalIncome = Math.abs(payments - taxAmount - totals.cost - totals.advertisement);
+  const incomePercent = Math.abs((totalIncome * 100) / totals.cost);
+  const DRR = (totals.advertisement * 100) / totals.priceWithSale;
+
+  const finalResult = document.getElementById("finalResult");
+  finalResult.innerHTML = `
+    <div class="container shadow-deep">
+        <h2>📊 Сводный отчет:</h3>
+        <table class="result-table">
+            <tr><td>Продаж учтено:</td><td>${salesCount} шт.</td></tr>
+            <tr class="positive"><td>Сумма выплат:</td><td>${totals.priceWithSale.toLocaleString()} т</td></tr>
+            <tr class="negative"><td>Разница выплат:</td><td>${Math.abs(totals.payout - totals.priceWithSale).toLocaleString()} т</td></tr>
+            <tr class="positive"><td>Сумма выплат (К перечислению):</td><td>${totals.payout.toLocaleString()} т</td></tr>
+            <tr class="negative"><td>Доставка:</td><td>${Math.round(totals.delivery).toLocaleString()} т</td></tr>
+            <tr class="negative"><td>Штрафы:</td><td>${Math.round(totals.penalties).toLocaleString()} т</td></tr>
+            <tr class="negative"><td>Хранение:</td><td>${Math.round(totals.storage).toLocaleString()} т</td></tr>
+            <tr class="negative"><td>Удержания:</td><td>${Math.round(totals.deductions).toLocaleString()} т</td></tr>
+            <tr><td>Выплаты после вычета расходов:</td><td>${Math.round(payments).toLocaleString()} т</td></tr>
+            <tr class="negative"><td>Общая себестоимость:</td><td>${Math.round(totals.cost).toLocaleString()} т</td></tr>
+            <tr class="negative"><td>Налог:</td><td>${Math.round(taxAmount).toLocaleString()} т</td></tr>
+            <tr class="negative"><td>Расходы на рекламу:</td><td>${Math.round(totals.advertisement).toLocaleString()} т</td></tr>
+            <tr class="table-line total-row ${incomePercent > 50 ? "positive" : "negative"}">
+              <td>Примерная чистая прибыль:</td>
+              <td>${Math.round(totalIncome).toLocaleString()} т</td>
+            </tr>
+              <tr class="total-row ${incomePercent > 50 ? "positive" : "negative"}">
+              <td>Прибыль %:</td>
+              <td>${Math.round(incomePercent).toLocaleString()} %</td>
+            </tr>
+              <tr>
+              <td>DRR %:</td>
+              <td>${DRR.toLocaleString()} %</td>
+            </tr>
+        </table>
+    </div>
+`;
+  if (finalResult) {
+    finalResult.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+};
