@@ -24,7 +24,7 @@ jobs:
           perl -i -0777 -pe '
             BEGIN { open $f, "<", "firebase_secret.json"; $secret = do { local $/; <$f> }; }
             s|.*import \{ firebaseConfig \} from "./config.js";|const firebaseConfig = $secret;|g
-          ' auth.html
+          ' auth.js
           rm firebase_secret.json
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
