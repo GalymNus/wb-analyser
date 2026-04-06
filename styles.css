@@ -466,3 +466,66 @@ input {
     border-color 0.2s,
     box-shadow 0.2s;
 }
+
+#authUserTokens {
+  min-width: 100px;
+  text-align: right;
+  margin: 0;
+}
+
+.tableNumber {
+  letter-spacing: 0.5px;
+}
+
+.scrollable {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cb11ab #f1f1f1;
+}
+
+.history-table td {
+  width: 180px;
+  white-space: nowrap;
+  padding: 10px;
+}
+
+.history-table td:first-child {
+  width: 340px;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background-color: white;
+  border-right: 2px solid #ddd;
+}
+
+.history-table td {
+  border-bottom: #666 solid 1px;
+}
+
+.history-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: separate;
+  border-spacing: 0;
+  display: block;
+}
+
+.history-table::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.history-table::-webkit-scrollbar-track {
+  background: #b2a4a4;
+  border-radius: 10px;
+}
+
+.history-table::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #cb11ab 0%, #481173 100%); /* Фирменный градиент */
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.history-table::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #e529c0 0%, #5e1891 100%);
+}
