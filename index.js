@@ -1,43 +1,50 @@
+import { doc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { auth, db } from "/auth.js";
+
 let excelData = [];
 const mem = {};
 
 const calcContainer = document.getElementById("calcContainer");
+const historyContainer = document.getElementById("history");
 
 export const addContainer = () => {
   calcContainer.innerHTML = `
     <div class="container shadow-deep">
-    <div>
-    <h2>1. Загрузите файл</h2>
-    <div class="upload-wrapper">
-      <input type="file" id="upload" accept=".xlsx, .xls" class="hidden-input" />
-      <label for="upload" class="custom-file-button">
-        📥 Загрузить файл 
-      </label>
-    </div>
-    </div>
-    <div id="extra-payments" class="step">
-    <h2>2. Введите числа для расчета:</h2>
-    <div class="input-row shadow-medium">
-    <span class="text">Реклама</span>
-    <input type="number" class="cost-input" id="advertisement" placeholder="0" />
-    </div>
-    <div class="input-row shadow-medium">
-    <span class="text">Процент налога (только число)</span>
-    <input type="number" class="cost-input" id="tax" placeholder="3" />
-    </div>
-    </div>
-    <div id="costInputs" class="step">
-    <h2>3. Введите себестоимость товаров:</h2>
-    <div id="inputsContainer"></div>
-    <button class="calculate-button" onclick="calculateTotal()">Посчитать итоги</button>
-    </div>
+      <div>
+        <h2>1. Загрузите файл</h2>
+        <div class="upload-wrapper">
+          <input type="file" id="upload" accept=".xlsx, .xls" class="hidden-input" />
+          <label for="upload" class="custom-file-button">
+            📥 Загрузить файл 
+          </label>
+        </div>
+      </div>
+      <div id="extra-payments" class="step">
+        <h2>2. Введите числа для расчета:</h2>
+        <div class="input-row shadow-medium">
+          <span class="text">Реклама</span>
+          <input type="number" class="cost-input" id="advertisement" placeholder="0" tabindex="1"/>
+        </div>
+        <div class="input-row shadow-medium">
+          <span class="text">Процент налога (только число)</span>
+          <input type="number" class="cost-input" id="tax" placeholder="3" tabindex="2"/>
+        </div>
+      </div>
+      <div id="costInputs" class="step">
+        <h2>3. Введите себестоимость товаров:</h2>
+        <div id="inputsContainer"></div>
+        <button class="calculate-button" onclick="calculateTotal()">Посчитать итоги</button>
+      </div>
     </div>`;
+
   const uploader = document.getElementById("upload");
   uploader.addEventListener("change", function (e) {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
+    console.log("file", file);
+    window.fileName = file.name;
     reader.onload = function (e) {
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: "array" });
@@ -119,7 +126,7 @@ function renderCostInputs(articles) {
   const container = document.getElementById("inputsContainer");
   container.innerHTML = articles.length > 0 ? "" : "<p>Нет данных</p>";
 
-  articles.sort().forEach((art) => {
+  articles.sort().forEach((art, index) => {
     if (!mem[art] || !Array.isArray(mem[art])) {
       mem[art] = defaultCosts.map((item) => ({ ...item }));
     }
@@ -143,7 +150,7 @@ function renderCostInputs(articles) {
             Рассчитать
             <input type="checkbox" class="toggle-details" onchange="toggleSpoiler(this)" ${isOpen ? "checked" : ""}>
         </label>
-        <input type="number" class="cost-input art-cost" data-art="${art}" value="0">
+        <input type="number" class="cost-input art-cost" data-art="${art}" value="0" tabindex=${index + 3}>
     </div>
   </div>
   <div class="spoiler-content ${isOpen ? "is-open" : ""}">
@@ -157,12 +164,11 @@ function renderCostInputs(articles) {
           </tr>
           ${currentCosts
             .map(
-              (item) => `
+              (item, index) => `
             <tr class="s-field">
                 <td>${item.name}</td>
                 <td class="total-cost">
-                    <input type="number" name="${item.name}" class="s-input" value="${item.value}"
-                        oninput="calcSubtotal(this)">
+                    <input type="number" name="${item.name}" class="s-input" value="${item.value}" oninput="calcSubtotal(this)">
                 </td>
                 <td class="unit-val">${item.isSystem ? "—" : (item.value / itemCount).toFixed(2)}</td>
             </tr>
@@ -228,6 +234,111 @@ document.calcSubtotal = (input) => {
   productBlock.querySelector(".subtotal-display-unit").textContent = perUnit;
   productBlock.querySelector(".art-cost").value = perUnit;
 };
+
+window.getReports = async () => {
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Пользователь не авторизован");
+
+    const reportsCollectionRef = collection(db, "userReports", user.uid, "reports");
+    const querySnapshot = await getDocs(reportsCollectionRef);
+    const reports = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    const reportKeys = [
+      "fileName",
+      "incomePercent",
+      "totalIncome",
+      "advertisement",
+      "DRR",
+      "salesCount",
+      "cost",
+      "storage",
+      "penalties",
+      "priceWithSale",
+      "payDiffirence",
+      "payments",
+      "delivery",
+      "taxAmount",
+      "payout",
+      "deductions",
+    ];
+    const translatedKeys = {
+      fileName: "Отчет за",
+      incomePercent: "Процент прибыли",
+      totalIncome: "Примерная чистая прибыль",
+      advertisement: "Реклама",
+      DRR: "ДРР",
+      salesCount: "Продаж",
+      cost: "Себестоимость",
+      storage: "Хранение",
+      penalties: "Штрафы",
+      priceWithSale: "Сумма выплат",
+      payDiffirence: "Разница выплат",
+      payments: "Выплаты после вычета расходов",
+      delivery: "Доставка",
+      taxAmount: "Налог",
+      taxProcent: "Налог %",
+      payout: "Сумма выплат (К перечислению)",
+      deductions: "Удержания",
+    };
+    const getRightName = (str) => {
+      const months = [
+        "Январь",
+        "Февраль",
+        "Март",
+        "Апрель",
+        "Май",
+        "Июнь",
+        "Июль",
+        "Август",
+        "Сентябрь",
+        "Октябрь",
+        "Ноябрь",
+        "Декабрь",
+      ];
+
+      return str
+        .replace("Отчет за ", "")
+        .replace(/(\d{4})-(\d{2})-(\d{2}) - \d{4}-\d{2}-(\d{2})/, (match, y, m, d1, d2) => {
+          return `${months[parseInt(m) - 1]} ${parseInt(d1)}-${parseInt(d2)} (${y})`;
+        });
+    };
+
+    historyContainer.innerHTML = `
+      <div class="container shadow-deep">
+        <h2>📊 История отчетов:</h3>
+        <table class="history-table scrollable">
+          ${reportKeys
+            .map((key) => {
+              return `<tr><td>${translatedKeys[key]}</td>${reports
+                .map((item) => {
+                  if (key == "fileName") {
+                    return `<td>${getRightName(item[key])}</td>`;
+                  } else {
+                    return `<td>${getRightNumber(item[key])}</td>`;
+                  }
+                })
+                .join("")}</tr>`;
+            })
+            .join("")}
+        </table>
+      </div>
+    `;
+    console.log("Все отчеты пользователя:", reports);
+    return reports;
+  } catch (error) {
+    console.error("Ошибка при получении отчетов:", error);
+  }
+};
+
+const getRightNumber = (number) =>
+  new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(number);
+
 window.calculateTotal = () => {
   const costs = {};
   document.querySelectorAll(".cost-input").forEach((input) => {
@@ -249,6 +360,7 @@ window.calculateTotal = () => {
   totals.advertisement = document.getElementById("advertisement").value || 0;
   totals.taxProcent = document.getElementById("tax").value / 100 || 0.03;
   let salesCount = 0;
+  const dates = new Set();
   excelData.forEach((row) => {
     const getVal = (key) => {
       const val = row[key];
@@ -263,6 +375,7 @@ window.calculateTotal = () => {
 
     const payout = getVal("К перечислению Продавцу за реализованный Товар");
     const art = row["Артикул поставщика"];
+    dates.add(row["Дата продажи"]);
 
     if (payout > 0) {
       totals.payout += payout;
@@ -276,48 +389,148 @@ window.calculateTotal = () => {
     totals.deductions += getVal("Удержания");
   });
 
-  const payments =
-    totals.payout -
-    Math.abs(totals.delivery) -
-    Math.abs(totals.penalties) -
-    Math.abs(totals.storage) -
-    Math.abs(totals.deductions);
-
-  const taxAmount = Math.abs(payments * totals.taxProcent);
-  const totalIncome = Math.abs(payments - taxAmount - totals.cost - totals.advertisement);
-  const incomePercent = Math.abs((totalIncome * 100) / totals.cost);
+  const payments = totals.payout - totals.delivery - totals.penalties - totals.storage - totals.deductions;
+  const taxAmount = payments * totals.taxProcent;
+  const totalIncome = payments - taxAmount - totals.cost - totals.advertisement;
+  const incomePercent = (totalIncome * 100) / totals.cost;
   const DRR = (totals.advertisement * 100) / totals.priceWithSale;
-
+  const fullReport = {
+    ...totals,
+    salesCount,
+    incomePercent,
+    payDiffirence: totals.priceWithSale - totals.payout,
+    taxAmount,
+    payments,
+    totalIncome,
+    DRR,
+  };
   const finalResult = document.getElementById("finalResult");
+  const fields = [
+    {
+      class: false,
+      label: "Продаж учтено",
+      value: fullReport.salesCount,
+      valueEnd: "шт.",
+    },
+    {
+      class: "positive",
+      label: "Сумма выплат",
+      value: fullReport.priceWithSale,
+      valueEnd: "тг.",
+    },
+    {
+      class: "negative",
+      label: "Разница выплат",
+      value: fullReport.payDiffirence,
+      valueEnd: "тг.",
+    },
+    {
+      class: "positive",
+      label: "Сумма выплат (К перечислению)",
+      value: fullReport.payout,
+      valueEnd: "тг.",
+    },
+    {
+      class: "negative",
+      label: "Доставка",
+      value: fullReport.delivery,
+      valueEnd: "тг.",
+    },
+    {
+      class: "negative",
+      label: "Штрафы",
+      value: fullReport.penalties,
+      valueEnd: "тг.",
+    },
+    {
+      class: "negative",
+      label: "Хранение",
+      value: fullReport.storage,
+      valueEnd: "тг.",
+    },
+    {
+      class: "negative",
+      label: "Удержания",
+      value: fullReport.deductions,
+      valueEnd: "тг.",
+    },
+    {
+      class: "positive",
+      label: "Выплаты после вычета расходов",
+      value: fullReport.payments,
+      valueEnd: "тг.",
+    },
+    {
+      class: "negative",
+      label: "Общая себестоимость",
+      value: fullReport.cost,
+      valueEnd: "тг.",
+    },
+    {
+      class: "negative",
+      label: "Налог",
+      value: fullReport.taxAmount,
+      valueEnd: "тг.",
+    },
+    {
+      class: "negative",
+      label: "Расходы на рекламу",
+      value: fullReport.advertisement,
+      valueEnd: "тг.",
+    },
+    {
+      class: `table-line total-row ${fullReport.incomePercent > 50 ? "positive" : "negative"}`,
+      label: "Примерная чистая прибыль",
+      value: fullReport.totalIncome,
+      valueEnd: "тг.",
+    },
+    {
+      class: `total-row ${fullReport.incomePercent > 50 ? "positive" : "negative"}`,
+      label: "Прибыль %",
+      value: fullReport.incomePercent,
+      valueEnd: "%",
+    },
+    {
+      class: false,
+      label: "DRR %",
+      value: fullReport.DRR,
+      valueEnd: "%",
+    },
+  ];
+
+  window.saveReport = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Пользователь не авторизован");
+
+      console.log("Saving report for user:", user.uid);
+
+      const reportId = `report_${Date.now()}`;
+      const userDocRef = doc(db, "userReports", user.uid, "reports", reportId);
+      const allDatesArr = [...dates];
+      const reportWithMeta = {
+        ...fullReport,
+        userId: user.uid,
+        createdAt: new Date().toISOString(),
+        fileName: `Отчет за ${allDatesArr[0]} - ${allDatesArr[allDatesArr.length - 1]}`,
+      };
+      console.log("reportWithMeta", reportWithMeta);
+      await setDoc(userDocRef, reportWithMeta);
+
+      console.log("Saved successfully! ID:", reportId);
+      alert("Отчет успешно сохранен!");
+    } catch (error) {
+      console.error("Error during report saving:", error.code, error.message);
+      alert("Ошибка при сохранении: " + error.message);
+    }
+  };
   finalResult.innerHTML = `
     <div class="container shadow-deep">
         <h2>📊 Сводный отчет:</h3>
         <table class="result-table">
-            <tr><td>Продаж учтено:</td><td>${salesCount} шт.</td></tr>
-            <tr class="positive"><td>Сумма выплат:</td><td>${totals.priceWithSale.toLocaleString()} т</td></tr>
-            <tr class="negative"><td>Разница выплат:</td><td>${Math.abs(totals.payout - totals.priceWithSale).toLocaleString()} т</td></tr>
-            <tr class="positive"><td>Сумма выплат (К перечислению):</td><td>${totals.payout.toLocaleString()} т</td></tr>
-            <tr class="negative"><td>Доставка:</td><td>${Math.round(totals.delivery).toLocaleString()} т</td></tr>
-            <tr class="negative"><td>Штрафы:</td><td>${Math.round(totals.penalties).toLocaleString()} т</td></tr>
-            <tr class="negative"><td>Хранение:</td><td>${Math.round(totals.storage).toLocaleString()} т</td></tr>
-            <tr class="negative"><td>Удержания:</td><td>${Math.round(totals.deductions).toLocaleString()} т</td></tr>
-            <tr><td>Выплаты после вычета расходов:</td><td>${Math.round(payments).toLocaleString()} т</td></tr>
-            <tr class="negative"><td>Общая себестоимость:</td><td>${Math.round(totals.cost).toLocaleString()} т</td></tr>
-            <tr class="negative"><td>Налог:</td><td>${Math.round(taxAmount).toLocaleString()} т</td></tr>
-            <tr class="negative"><td>Расходы на рекламу:</td><td>${Math.round(totals.advertisement).toLocaleString()} т</td></tr>
-            <tr class="table-line total-row ${incomePercent > 50 ? "positive" : "negative"}">
-              <td>Примерная чистая прибыль:</td>
-              <td>${Math.round(totalIncome).toLocaleString()} т</td>
-            </tr>
-              <tr class="total-row ${incomePercent > 50 ? "positive" : "negative"}">
-              <td>Прибыль %:</td>
-              <td>${Math.round(incomePercent).toLocaleString()} %</td>
-            </tr>
-              <tr>
-              <td>DRR %:</td>
-              <td>${DRR.toLocaleString()} %</td>
-            </tr>
+            ${fields.map((field) => `<tr${field.class ? ` class="${field.class}"` : ""}><td>${field.label}:</td><td class="tableNumber">${getRightNumber(field.value)} ${field.valueEnd || ""}</td></tr>`).join("")}
         </table>
+        <button class="calculate-button" onclick="saveReport()" >Сохранить</button>
     </div>
 `;
   if (finalResult) {
