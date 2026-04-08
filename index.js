@@ -1,5 +1,5 @@
 import { doc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { auth, db } from "/auth.js";
+import { auth, db } from "./auth.js";
 
 let excelData = [];
 const mem = {};
@@ -22,12 +22,12 @@ export const addContainer = () => {
       <div id="extra-payments" class="step">
         <h2>2. Введите числа для расчета:</h2>
         <div class="input-row shadow-medium">
-          <span class="text">Реклама</span>
+          <span class="text">Расходы на рекламу</span>
           <input type="number" class="cost-input" id="advertisement" placeholder="0" tabindex="1"/>
         </div>
         <div class="input-row shadow-medium">
           <span class="text">Процент налога (только число)</span>
-          <input type="number" class="cost-input" id="tax" placeholder="3" tabindex="2"/>
+          <input type="number" class="cost-input" id="tax" value="3" tabindex="2"/>
         </div>
       </div>
       <div id="costInputs" class="step">
@@ -69,20 +69,7 @@ export const addContainer = () => {
   });
 };
 
-const defaultCosts = [
-  { name: "Кол-во", value: 2000, isSystem: true },
-  { name: "Цена (Китай)", value: 1500000, isSystem: false },
-  { name: "Логистика", value: 80000, isSystem: false },
-  { name: "Растаможка 26%", value: 390000, isSystem: false },
-  { name: "Брокеры", value: 60000, isSystem: false },
-  { name: "Доставка (КЗ)", value: 32000, isSystem: false },
-  { name: "Стикеры", value: 2500, isSystem: false },
-  { name: "Коробки", value: 6400, isSystem: false },
-  { name: "Скотч", value: 1200, isSystem: false },
-  { name: "Кур. пакеты", value: 20000, isSystem: false },
-  { name: "ФФ (Фулфилмент)", value: 60000, isSystem: false },
-  { name: "Инфографика", value: 15000, isSystem: false },
-];
+const defaultCosts = [{ name: "Кол-во", value: 1, isSystem: true }];
 
 document.addNewCostKey = (button) => {
   const row = button.closest(".cost-mgmt-container");
@@ -170,7 +157,7 @@ function renderCostInputs(articles) {
                 <td class="total-cost">
                     <input type="number" name="${item.name}" class="s-input" value="${item.value}" oninput="calcSubtotal(this)">
                 </td>
-                <td class="unit-val">${item.isSystem ? "—" : (item.value / itemCount).toFixed(2)}</td>
+                <td class="unit-val">${item.isSystem ? "" : (item.value / itemCount).toFixed(2)}</td>
             </tr>
           `,
             )
@@ -246,43 +233,26 @@ window.getReports = async () => {
       id: doc.id,
       ...doc.data(),
     }));
-    const reportKeys = [
-      "fileName",
-      "incomePercent",
-      "totalIncome",
-      "advertisement",
-      "DRR",
-      "salesCount",
-      "cost",
-      "storage",
-      "penalties",
-      "priceWithSale",
-      "payDiffirence",
-      "payments",
-      "delivery",
-      "taxAmount",
-      "payout",
-      "deductions",
+    const combinedReportData = [
+      { key: "fileName", translatedLabel: "Отчет за", class: false },
+      { key: "salesCount", translatedLabel: "Продаж", class: false },
+      { key: "priceWithSale", translatedLabel: "Сумма выплат", class: "positive" },
+      { key: "payDiffirence", translatedLabel: "Разница выплат", class: "negative" },
+      { key: "payout", translatedLabel: "Сумма выплат (К перечислению)", class: "positive" },
+      { key: "delivery", translatedLabel: "Доставка", class: "negative" },
+      { key: "penalties", translatedLabel: "Штрафы", class: "negative" },
+      { key: "storage", translatedLabel: "Хранение", class: "negative" },
+      { key: "deductions", translatedLabel: "Удержания", class: "negative" },
+      { key: "payments", translatedLabel: "Выплаты после вычета расходов", class: "positive" },
+      { key: "cost", translatedLabel: "Себестоимость", class: "negative" },
+      { key: "taxProcent", translatedLabel: "Налог %", class: "negative" },
+      { key: "taxAmount", translatedLabel: "Налог", class: "negative" },
+      { key: "advertisement", translatedLabel: "Реклама", class: "negative" },
+      { key: "DRR", translatedLabel: "DRR %", class: false },
+      { key: "totalIncome", translatedLabel: "Примерная чистая прибыль", class: "table-line total-row" },
+      { key: "incomePercent", translatedLabel: "Процент прибыли", class: "total-row" },
     ];
-    const translatedKeys = {
-      fileName: "Отчет за",
-      incomePercent: "Процент прибыли",
-      totalIncome: "Примерная чистая прибыль",
-      advertisement: "Реклама",
-      DRR: "ДРР",
-      salesCount: "Продаж",
-      cost: "Себестоимость",
-      storage: "Хранение",
-      penalties: "Штрафы",
-      priceWithSale: "Сумма выплат",
-      payDiffirence: "Разница выплат",
-      payments: "Выплаты после вычета расходов",
-      delivery: "Доставка",
-      taxAmount: "Налог",
-      taxProcent: "Налог %",
-      payout: "Сумма выплат (К перечислению)",
-      deductions: "Удержания",
-    };
+
     const getRightName = (str) => {
       const months = [
         "Январь",
@@ -298,7 +268,7 @@ window.getReports = async () => {
         "Ноябрь",
         "Декабрь",
       ];
-
+      console.log("str", str);
       return str
         .replace("Отчет за ", "")
         .replace(/(\d{4})-(\d{2})-(\d{2}) - \d{4}-\d{2}-(\d{2})/, (match, y, m, d1, d2) => {
@@ -310,14 +280,14 @@ window.getReports = async () => {
       <div class="container shadow-deep">
         <h2>📊 История отчетов:</h3>
         <table class="history-table scrollable">
-          ${reportKeys
-            .map((key) => {
-              return `<tr><td>${translatedKeys[key]}</td>${reports
+          ${combinedReportData
+            .map((row) => {
+              return `<tr class="${row.class}"><td>${row.translatedLabel}</td>${[...reports, ...reports]
                 .map((item) => {
-                  if (key == "fileName") {
-                    return `<td>${getRightName(item[key])}</td>`;
+                  if (row.key == "fileName") {
+                    return `<td>${getRightName(item[row.key])}</td>`;
                   } else {
-                    return `<td>${getRightNumber(item[key])}</td>`;
+                    return `<td>${getRightNumber(item[row.key])}</td>`;
                   }
                 })
                 .join("")}</tr>`;
@@ -358,7 +328,7 @@ window.calculateTotal = () => {
   };
 
   totals.advertisement = document.getElementById("advertisement").value || 0;
-  totals.taxProcent = document.getElementById("tax").value / 100 || 0.03;
+  totals.taxProcent = document.getElementById("tax").value / 100;
   let salesCount = 0;
   const dates = new Set();
   excelData.forEach((row) => {
@@ -405,7 +375,7 @@ window.calculateTotal = () => {
     DRR,
   };
   const finalResult = document.getElementById("finalResult");
-  const fields = [
+  const finalResultsFields = [
     {
       class: false,
       label: "Продаж учтено",
@@ -514,7 +484,6 @@ window.calculateTotal = () => {
         createdAt: new Date().toISOString(),
         fileName: `Отчет за ${allDatesArr[0]} - ${allDatesArr[allDatesArr.length - 1]}`,
       };
-      console.log("reportWithMeta", reportWithMeta);
       await setDoc(userDocRef, reportWithMeta);
 
       console.log("Saved successfully! ID:", reportId);
@@ -528,7 +497,7 @@ window.calculateTotal = () => {
     <div class="container shadow-deep">
         <h2>📊 Сводный отчет:</h3>
         <table class="result-table">
-            ${fields.map((field) => `<tr${field.class ? ` class="${field.class}"` : ""}><td>${field.label}:</td><td class="tableNumber">${getRightNumber(field.value)} ${field.valueEnd || ""}</td></tr>`).join("")}
+            ${finalResultsFields.map((field) => `<tr${field.class ? ` class="${field.class}"` : ""}><td>${field.label}:</td><td class="tableNumber">${getRightNumber(field.value)} ${field.valueEnd || ""}</td></tr>`).join("")}
         </table>
         <button class="calculate-button" onclick="saveReport()" >Сохранить</button>
     </div>

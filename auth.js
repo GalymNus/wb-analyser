@@ -48,7 +48,7 @@ async function registerAndAddCredits(email, password) {
     const userDocRef = doc(db, "users", user.uid); // Reference to the user's document using their UID
     await setDoc(userDocRef, {
       email: user.email,
-      credits: 3,
+      credits: 8,
       createdAt: new Date(),
     });
 
