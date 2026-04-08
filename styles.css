@@ -194,7 +194,7 @@ tr td:not(:first-child) {
   font-weight: 500;
 }
 
-.table-line {
+.table-line td {
   border-top: 2px solid #807d7d;
 }
 
@@ -257,11 +257,6 @@ tr td:not(:first-child) {
   text-align: left;
   width: 100%;
   border-collapse: collapse;
-}
-
-.costTable tr:first-child {
-  background: var(--wb-gradient);
-  color: var(--wb-bg);
 }
 
 .costTable input {
@@ -495,12 +490,12 @@ input {
   position: sticky;
   left: 0;
   z-index: 10;
-  background-color: white;
   border-right: 2px solid #ddd;
+  background-color: white;
 }
 
 .history-table td {
-  border-bottom: #666 solid 1px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .history-table {
@@ -528,4 +523,18 @@ input {
 
 .history-table::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(90deg, #e529c0 0%, #5e1891 100%);
+}
+
+.costTable tr:first-child,
+.history-table tr:first-child {
+  background: var(--wb-gradient) !important;
+  color: var(--wb-bg);
+}
+
+.history-table tr:first-child td:first-child {
+  background-color: #671180;
+}
+
+.total-row td {
+  background-color: var(--wb-bg) !important;
 }
