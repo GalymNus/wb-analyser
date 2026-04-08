@@ -71,16 +71,17 @@ async function registerAndAddCredits(email, password) {
   }
 }
 
-async function getTokens(userId) {
+export async function getTokens(userId) {
   try {
     const userDocRef = doc(db, "users", userId);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
       console.log("Document data:", userDocSnap.data());
-      window.tokens = userDocSnap.data().credits;
-      authUserTokens.innerText = `${window.tokens} 🪙`;
+      localStorage.setItem("tokens", userDocSnap.data().credits);
+      return userDocSnap.data().credits;
     } else {
       console.log("No such document!");
+      return 0;
     }
   } catch (error) {
     console.error("Error getting user document:", error);
@@ -130,9 +131,7 @@ btnLogout.onclick = () => {
 const loginChange = (user) => {
   authUserInfo.style.display = "flex";
   authUserLogin.innerText = user ? user.email : "admin";
-  if (window.tokens) {
-    authUserTokens.innerText = `${window.tokens} 🪙`;
-  }
+  authUserTokens.innerText = localStorage.getItem("tokens") ? `${localStorage.getItem("tokens")} 🪙` : "";
   authContainer.style.display = "none";
   authButton.style.display = "none";
   emailInput.style.display = "none";
