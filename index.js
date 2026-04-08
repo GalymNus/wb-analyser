@@ -1,11 +1,35 @@
-import { doc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { auth, db } from "./auth.js";
+import {
+  doc,
+  setDoc,
+  updateDoc,
+  increment,
+  collection,
+  getDocs,
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { auth, db, getTokens } from "./auth.js";
 
 let excelData = [];
 const mem = {};
 
 const calcContainer = document.getElementById("calcContainer");
 const historyContainer = document.getElementById("history");
+
+export async function spendToken() {
+  try {
+    const userDocRef = doc(db, "users", auth.currentUser.uid);
+    await updateDoc(userDocRef, {
+      credits: increment(-1),
+    });
+    const currentTokens = parseInt(localStorage.getItem("tokens") || 0);
+    const authUserTokens = document.getElementById("authUserTokens");
+    const newTokens = currentTokens - 1;
+    authUserTokens.innerText = `${newTokens} 🪙`;
+    localStorage.setItem("tokens", newTokens);
+  } catch (error) {
+    console.error("Ошибка при списании токена:", error);
+    throw error;
+  }
+}
 
 export const addContainer = () => {
   calcContainer.innerHTML = `
@@ -38,7 +62,12 @@ export const addContainer = () => {
     </div>`;
 
   const uploader = document.getElementById("upload");
-  uploader.addEventListener("change", function (e) {
+  uploader.addEventListener("change", async function (e) {
+    const currentTokens = await getTokens(auth.currentUser.uid);
+    if (currentTokens < 1) {
+      alert("Не достадочно токенов!");
+      return;
+    }
     const file = e.target.files[0];
     if (!file) return;
 
@@ -279,10 +308,13 @@ window.getReports = async () => {
     historyContainer.innerHTML = `
       <div class="container shadow-deep">
         <h2>📊 История отчетов:</h3>
+        ${
+          reports.length > 0
+            ? `
         <table class="history-table scrollable">
           ${combinedReportData
             .map((row) => {
-              return `<tr class="${row.class}"><td>${row.translatedLabel}</td>${[...reports, ...reports]
+              return `<tr class="${row.class}"><td>${row.translatedLabel}</td>${reports
                 .map((item) => {
                   if (row.key == "fileName") {
                     return `<td>${getRightName(item[row.key])}</td>`;
@@ -293,7 +325,9 @@ window.getReports = async () => {
                 .join("")}</tr>`;
             })
             .join("")}
-        </table>
+        </table>`
+            : `<span>Не найдено сохраненных отчетов.</span>`
+        }
       </div>
     `;
     console.log("Все отчеты пользователя:", reports);
@@ -309,7 +343,14 @@ const getRightNumber = (number) =>
     maximumFractionDigits: 2,
   }).format(number);
 
-window.calculateTotal = () => {
+window.calculateTotal = async () => {
+  const currentTokens = await getTokens(auth.currentUser.uid);
+  if (currentTokens < 1) {
+    alert("Не достадочно токенов!");
+    return;
+  } else {
+    await spendToken();
+  }
   const costs = {};
   document.querySelectorAll(".cost-input").forEach((input) => {
     costs[input.dataset.art] = parseFloat(input.value) || 0;
