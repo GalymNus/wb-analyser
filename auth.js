@@ -10,7 +10,13 @@ import {
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import { addContainer } from "./index.js";
 
@@ -35,10 +41,32 @@ const authModeLabel = document.getElementById("authModeLabel");
 const passwordConfirm = document.getElementById("passwordConfirm");
 const authTitle = document.getElementById("authTitle");
 const authUserTokens = document.getElementById("authUserTokens");
+const btnLogout = document.getElementById("btnLogout");
 
 export const db = getFirestore();
 
 console.log("auth", auth);
+
+function validateAuthInputs() {
+  const email = emailInput.value.trim();
+  const password = passInput.value;
+  const confirmPassword = passwordConfirm.value;
+
+  if (!email || !password) {
+    throw new Error("Email и пароль обязательны");
+  }
+
+  if (!isAuth) {
+    if (!confirmPassword) {
+      throw new Error("Подтвердите пароль");
+    }
+    if (password !== confirmPassword) {
+      throw new Error("Пароли не совпадают");
+    }
+  }
+
+  return { email, password };
+}
 
 async function registerAndAddCredits(email, password) {
   try {
@@ -49,7 +77,7 @@ async function registerAndAddCredits(email, password) {
     await setDoc(userDocRef, {
       email: user.email,
       credits: 8,
-      createdAt: new Date(),
+      createdAt: serverTimestamp(),
     });
 
     console.log("User document created in Firestore with initial credits for:", user.uid);
@@ -67,7 +95,6 @@ export async function getTokens(userId) {
     const userDocRef = doc(db, "users", userId);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
-      console.log("Document data:", userDocSnap.data());
       localStorage.setItem("tokens", userDocSnap.data().credits);
       return userDocSnap.data().credits;
     } else {
@@ -81,18 +108,22 @@ export async function getTokens(userId) {
 }
 
 authButton.onclick = async () => {
-  if (isAuth) {
-    signInWithEmailAndPassword(auth, emailInput.value, passInput.value)
-      .catch((err) => (statusMsg.innerText = "Ошибка: " + err.message))
-      .then(async () => {
-        await getTokens(auth.currentUser.uid);
-      });
-  } else {
-    await registerAndAddCredits(emailInput.value, passInput.value)
-      .catch((err) => (statusMsg.innerText = "Ошибка: " + err.message))
-      .then(async () => {
-        await getTokens(auth.currentUser.uid);
-      });
+  try {
+    statusMsg.innerText = "";
+    const { email, password } = validateAuthInputs();
+
+    if (isAuth) {
+      await signInWithEmailAndPassword(auth, email, password);
+    } else {
+      await registerAndAddCredits(email, password);
+      passwordConfirm.value = "";
+    }
+
+    if (auth.currentUser?.uid) {
+      await getTokens(auth.currentUser.uid);
+    }
+  } catch (err) {
+    statusMsg.innerText = "Ошибка: " + err.message;
   }
 };
 
@@ -152,20 +183,5 @@ onAuthStateChanged(auth, (user) => {
     loginChange(user);
   } else {
     logountChange();
-  }
-});
-
-let inputBuffer = "";
-const secretCode = "admin";
-
-document.addEventListener("keypress", (e) => {
-  inputBuffer += e.key.toLowerCase();
-  inputBuffer = inputBuffer.slice(-secretCode.length);
-  if (inputBuffer === secretCode) {
-    const speech = new SpeechSynthesisUtterance("zaibal");
-    window.speechSynthesis.speak(speech);
-    inputBuffer = "";
-    document.getElementsByTagName("body")[0].style.backgroundColor = "#83cb9f";
-    loginChange();
   }
 });
