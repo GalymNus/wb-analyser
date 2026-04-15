@@ -88,22 +88,11 @@ button:active {
   display: none;
 }
 
-.authLink {
-  position: absolute;
-  top: 4px;
-  right: 10px;
-  display: block;
-  text-align: center;
-  color: var(--wb-magenta);
-  text-decoration: none;
-  font-weight: 500;
-}
-
 .container {
   max-width: 800px;
   background: white;
   padding: 30px;
-  margin: 40px auto;
+  margin: 50px auto;
   border-radius: 24px;
   box-shadow:
     0 10px 30px -5px rgba(0, 0, 0, 0.1),
@@ -350,11 +339,6 @@ tr td:not(:first-child) {
   gap: 10px;
 }
 
-#btnLogin {
-  background: var(--wb-gradient);
-  color: white;
-}
-
 #statusMsg {
   display: block;
   margin-top: 15px;
@@ -413,7 +397,6 @@ tr td:not(:first-child) {
   padding: 20px;
   border: 2px dashed #ddd;
   border-radius: 16px;
-  cursor: pointer;
   background: #fafafa;
 }
 
@@ -525,6 +508,25 @@ input {
   background: linear-gradient(90deg, #e529c0 0%, #5e1891 100%);
 }
 
+.history-table.single-report {
+  min-width: 100%;
+  width: 100%;
+  display: table;
+  table-layout: fixed;
+}
+
+.history-table.single-report td {
+  width: auto;
+  white-space: normal;
+}
+
+.history-table.single-report td:first-child {
+  width: auto;
+  position: static;
+  left: auto;
+  border-right: none;
+}
+
 .costTable tr:first-child,
 .history-table tr:first-child {
   background: var(--wb-gradient) !important;
@@ -537,4 +539,60 @@ input {
 
 .total-row td {
   background-color: var(--wb-bg) !important;
+}
+
+.product-sales-toggle-row td {
+  padding-top: 14px;
+}
+
+.product-sales-toggle-btn {
+  width: auto;
+  min-width: 180px;
+}
+
+.product-sales-inline-toggle {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--wb-magenta);
+  font-size: inherit;
+  font-weight: 500;
+  padding: 0;
+  margin-left: 8px;
+  width: auto;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.product-sales-inline-toggle:hover {
+  opacity: 0.8;
+  box-shadow: none;
+}
+
+.product-sales-details-row {
+  display: none;
+}
+
+.product-sales-details-row.is-open {
+  display: table-row;
+}
+
+.product-sales-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.product-sales-details-row td {
+  padding: 0px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.product-sales-table td {
+  padding: 10px 0px 0px 15px;
+}
+
+.sales-count-row {
+  vertical-align: top;
+  text-align: left;
+  padding: 0;
 }
