@@ -1,12 +1,17 @@
 import {
   doc,
   setDoc,
-  updateDoc,
-  increment,
+  runTransaction,
   collection,
   getDocs,
+  query,
+  orderBy,
+  limit,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { auth, db, getTokens } from "./auth.js";
+import { calculateReport, extractArticles } from "./report-calculator.js";
+import { buildFinalResultFields, formatNumber, formatReportName, historyRows } from "./report-formatters.js";
+import { decodeAttrValue, encodeAttrValue, escapeHtml, sanitizeCostName } from "./input-helpers.js";
 
 let excelData = [];
 const mem = {};
@@ -14,15 +19,36 @@ const mem = {};
 const calcContainer = document.getElementById("calcContainer");
 const historyContainer = document.getElementById("history");
 
+window.toggleProductSalesSpoiler = (button) => {
+  const detailsRow = button.closest("tr")?.nextElementSibling;
+  if (!detailsRow) return;
+  const isOpen = detailsRow.classList.toggle("is-open");
+  button.textContent = isOpen ? "cкрыть" : "подробнее";
+};
+
 export async function spendToken() {
   try {
     const userDocRef = doc(db, "users", auth.currentUser.uid);
-    await updateDoc(userDocRef, {
-      credits: increment(-1),
+    const newTokens = await runTransaction(db, async (transaction) => {
+      const userDoc = await transaction.get(userDocRef);
+      if (!userDoc.exists()) {
+        throw new Error("Пользователь не найден");
+      }
+
+      const credits = Number(userDoc.data().credits) || 0;
+      if (credits < 1) {
+        throw new Error("Недостаточно токенов");
+      }
+
+      const updatedCredits = credits - 1;
+      transaction.update(userDocRef, {
+        credits: updatedCredits,
+      });
+
+      return updatedCredits;
     });
-    const currentTokens = parseInt(localStorage.getItem("tokens") || 0);
+
     const authUserTokens = document.getElementById("authUserTokens");
-    const newTokens = currentTokens - 1;
     authUserTokens.innerText = `${newTokens} 🪙`;
     localStorage.setItem("tokens", newTokens);
   } catch (error) {
@@ -79,18 +105,7 @@ export const addContainer = () => {
       const wb = XLSX.read(data, { type: "array" });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       excelData = XLSX.utils.sheet_to_json(sheet);
-      const articles = [
-        ...new Set(
-          excelData
-            .filter((row) => {
-              const pay = parseFloat(
-                String(row["К перечислению Продавцу за реализованный Товар"]).replace(/[^\d.-]/g, ""),
-              );
-              return pay && pay > 0;
-            })
-            .map((row) => row["Артикул поставщика"]),
-        ),
-      ];
+      const articles = extractArticles(excelData);
 
       renderCostInputs(articles);
     };
@@ -103,7 +118,8 @@ const defaultCosts = [{ name: "Кол-во", value: 1, isSystem: true }];
 document.addNewCostKey = (button) => {
   const row = button.closest(".cost-mgmt-container");
   const input = row.querySelector(".new-cost-input");
-  const name = input.value.trim();
+  const name = sanitizeCostName(input.value);
+  input.value = name;
 
   if (!name) return alert("Введите название");
 
@@ -117,7 +133,9 @@ document.addNewCostKey = (button) => {
     }
   });
 
-  const currentArticles = Array.from(document.querySelectorAll(".product-block")).map((el) => el.dataset.art);
+  const currentArticles = Array.from(document.querySelectorAll(".product-block")).map((el) =>
+    decodeAttrValue(el.dataset.art),
+  );
   renderCostInputs(currentArticles);
 };
 
@@ -125,7 +143,7 @@ const openedSpoilers = new Set();
 
 window.toggleSpoiler = function (checkbox) {
   const productBlock = checkbox.closest(".product-block");
-  const art = productBlock.getAttribute("data-art"); // Получаем артикул
+  const art = decodeAttrValue(productBlock.getAttribute("data-art")); // Получаем артикул
   const spoiler = productBlock.querySelector(".spoiler-content");
 
   if (checkbox.checked) {
@@ -157,16 +175,18 @@ function renderCostInputs(articles) {
       .filter((i) => !i.isSystem)
       .reduce((acc, cur) => acc + (Number.parseFloat(cur.value) || 0), 0);
 
+    const safeArt = escapeHtml(art);
+    const artAttrValue = encodeAttrValue(art);
     container.innerHTML += `
-<div class="product-block shadow-medium" data-art="${art}">
+<div class="product-block shadow-medium" data-art="${artAttrValue}">
   <div class="input-row">
-    <span class="text">${art}</span>
+    <span class="text">${safeArt}</span>
     <div class="controls-wrapper">
         <label class="switch-label">
             Рассчитать
             <input type="checkbox" class="toggle-details" onchange="toggleSpoiler(this)" ${isOpen ? "checked" : ""}>
         </label>
-        <input type="number" class="cost-input art-cost" data-art="${art}" value="0" tabindex=${index + 3}>
+        <input type="number" class="cost-input art-cost" data-art="${artAttrValue}" value="0" tabindex=${index + 3}>
     </div>
   </div>
   <div class="spoiler-content ${isOpen ? "is-open" : ""}">
@@ -182,7 +202,7 @@ function renderCostInputs(articles) {
             .map(
               (item, index) => `
             <tr class="s-field">
-                <td>${item.name}</td>
+                <td>${escapeHtml(item.name)}</td>
                 <td class="total-cost">
                     <input type="number" name="${item.name}" class="s-input" value="${item.value}" oninput="calcSubtotal(this)">
                 </td>
@@ -219,7 +239,7 @@ function renderCostInputs(articles) {
 
 document.calcSubtotal = (input) => {
   const productBlock = input.closest(".product-block");
-  const art = productBlock.dataset.art;
+  const art = decodeAttrValue(productBlock.dataset.art);
   const fieldName = input.name;
   const newVal = Number.parseFloat(input.value) || 0;
 
@@ -257,69 +277,32 @@ window.getReports = async () => {
     if (!user) throw new Error("Пользователь не авторизован");
 
     const reportsCollectionRef = collection(db, "userReports", user.uid, "reports");
-    const querySnapshot = await getDocs(reportsCollectionRef);
+    const reportsQuery = query(reportsCollectionRef, orderBy("fileName", "desc"), limit(5));
+    const querySnapshot = await getDocs(reportsQuery);
     const reports = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
-    const combinedReportData = [
-      { key: "fileName", translatedLabel: "Отчет за", class: false },
-      { key: "salesCount", translatedLabel: "Продаж", class: false },
-      { key: "priceWithSale", translatedLabel: "Сумма выплат", class: "positive" },
-      { key: "payDiffirence", translatedLabel: "Разница выплат", class: "negative" },
-      { key: "payout", translatedLabel: "Сумма выплат (К перечислению)", class: "positive" },
-      { key: "delivery", translatedLabel: "Доставка", class: "negative" },
-      { key: "penalties", translatedLabel: "Штрафы", class: "negative" },
-      { key: "storage", translatedLabel: "Хранение", class: "negative" },
-      { key: "deductions", translatedLabel: "Удержания", class: "negative" },
-      { key: "payments", translatedLabel: "Выплаты после вычета расходов", class: "positive" },
-      { key: "cost", translatedLabel: "Себестоимость", class: "negative" },
-      { key: "taxProcent", translatedLabel: "Налог %", class: "negative" },
-      { key: "taxAmount", translatedLabel: "Налог", class: "negative" },
-      { key: "advertisement", translatedLabel: "Реклама", class: "negative" },
-      { key: "DRR", translatedLabel: "DRR %", class: false },
-      { key: "totalIncome", translatedLabel: "Примерная чистая прибыль", class: "table-line total-row" },
-      { key: "incomePercent", translatedLabel: "Процент прибыли", class: "total-row" },
-    ];
-
-    const getRightName = (str) => {
-      const months = [
-        "Январь",
-        "Февраль",
-        "Март",
-        "Апрель",
-        "Май",
-        "Июнь",
-        "Июль",
-        "Август",
-        "Сентябрь",
-        "Октябрь",
-        "Ноябрь",
-        "Декабрь",
-      ];
-      console.log("str", str);
-      return str
-        .replace("Отчет за ", "")
-        .replace(/(\d{4})-(\d{2})-(\d{2}) - \d{4}-\d{2}-(\d{2})/, (match, y, m, d1, d2) => {
-          return `${months[parseInt(m) - 1]} ${parseInt(d1)}-${parseInt(d2)} (${y})`;
-        });
-    };
-
     historyContainer.innerHTML = `
       <div class="container shadow-deep">
         <h2>📊 История отчетов:</h3>
         ${
           reports.length > 0
             ? `
-        <table class="history-table scrollable">
-          ${combinedReportData
+        <table class="history-table scrollable ${reports.length === 1 ? "single-report" : ""}">
+          ${historyRows
             .map((row) => {
               return `<tr class="${row.class}"><td>${row.translatedLabel}</td>${reports
-                .map((item) => {
+                .map((report) => {
                   if (row.key == "fileName") {
-                    return `<td>${getRightName(item[row.key])}</td>`;
+                    return `<td>${escapeHtml(formatReportName(report[row.key]))}</td>`;
+                  } else if (row.key == "productSales") {
+                    const sortedReportSales = report[row.key].sort();
+                    return `<td>${sortedReportSales
+                      .map(({ name, salesCount }) => `${name}-${salesCount}`)
+                      .join("<br>")}</td>`;
                   } else {
-                    return `<td>${getRightNumber(item[row.key])}</td>`;
+                    return `<td>${escapeHtml(formatNumber(report[row.key]))}</td>`;
                   }
                 })
                 .join("")}</tr>`;
@@ -337,13 +320,11 @@ window.getReports = async () => {
   }
 };
 
-const getRightNumber = (number) =>
-  new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(number);
-
 window.calculateTotal = async () => {
+  if (!auth.currentUser?.uid) {
+    alert("Пользователь не авторизован");
+    return;
+  }
   const currentTokens = await getTokens(auth.currentUser.uid);
   if (currentTokens < 1) {
     alert("Не достадочно токенов!");
@@ -353,161 +334,16 @@ window.calculateTotal = async () => {
   }
   const costs = {};
   document.querySelectorAll(".cost-input").forEach((input) => {
-    costs[input.dataset.art] = parseFloat(input.value) || 0;
+    costs[decodeAttrValue(input.dataset.art)] = parseFloat(input.value) || 0;
   });
 
-  let totals = {
-    cost: 0,
-    payout: 0,
-    delivery: 0,
-    penalties: 0,
-    storage: 0,
-    priceWithSale: 0,
-    deductions: 0,
-    advertisement: 0,
-    taxProcent: 0,
-  };
-
-  totals.advertisement = document.getElementById("advertisement").value || 0;
-  totals.taxProcent = document.getElementById("tax").value / 100;
-  let salesCount = 0;
-  const dates = new Set();
-  excelData.forEach((row) => {
-    const getVal = (key) => {
-      const val = row[key];
-      if (!val) return 0;
-      const parsed = parseFloat(
-        String(val)
-          .replace(/[^\d.-]/g, "")
-          .replace(",", "."),
-      );
-      return isNaN(parsed) ? 0 : parsed;
-    };
-
-    const payout = getVal("К перечислению Продавцу за реализованный Товар");
-    const art = row["Артикул поставщика"];
-    dates.add(row["Дата продажи"]);
-
-    if (payout > 0) {
-      totals.payout += payout;
-      totals.cost += costs[art] || 0;
-      salesCount++;
-    }
-    totals.delivery += getVal("Услуги по доставке товара покупателю");
-    totals.penalties += getVal("Общая сумма штрафов");
-    totals.storage += getVal("Хранение");
-    totals.priceWithSale += getVal("Цена розничная с учетом согласованной скидки");
-    totals.deductions += getVal("Удержания");
-  });
-
-  const payments = totals.payout - totals.delivery - totals.penalties - totals.storage - totals.deductions;
-  const taxAmount = payments * totals.taxProcent;
-  const totalIncome = payments - taxAmount - totals.cost - totals.advertisement;
-  const incomePercent = (totalIncome * 100) / totals.cost;
-  const DRR = (totals.advertisement * 100) / totals.priceWithSale;
-  const fullReport = {
-    ...totals,
-    salesCount,
-    incomePercent,
-    payDiffirence: totals.priceWithSale - totals.payout,
-    taxAmount,
-    payments,
-    totalIncome,
-    DRR,
-  };
+  const advertisementValue = document.getElementById("advertisement").value;
+  const taxValue = document.getElementById("tax").value;
+  const { fullReport, dates } = calculateReport(excelData, costs, advertisementValue, taxValue);
   const finalResult = document.getElementById("finalResult");
-  const finalResultsFields = [
-    {
-      class: false,
-      label: "Продаж учтено",
-      value: fullReport.salesCount,
-      valueEnd: "шт.",
-    },
-    {
-      class: "positive",
-      label: "Сумма выплат",
-      value: fullReport.priceWithSale,
-      valueEnd: "тг.",
-    },
-    {
-      class: "negative",
-      label: "Разница выплат",
-      value: fullReport.payDiffirence,
-      valueEnd: "тг.",
-    },
-    {
-      class: "positive",
-      label: "Сумма выплат (К перечислению)",
-      value: fullReport.payout,
-      valueEnd: "тг.",
-    },
-    {
-      class: "negative",
-      label: "Доставка",
-      value: fullReport.delivery,
-      valueEnd: "тг.",
-    },
-    {
-      class: "negative",
-      label: "Штрафы",
-      value: fullReport.penalties,
-      valueEnd: "тг.",
-    },
-    {
-      class: "negative",
-      label: "Хранение",
-      value: fullReport.storage,
-      valueEnd: "тг.",
-    },
-    {
-      class: "negative",
-      label: "Удержания",
-      value: fullReport.deductions,
-      valueEnd: "тг.",
-    },
-    {
-      class: "positive",
-      label: "Выплаты после вычета расходов",
-      value: fullReport.payments,
-      valueEnd: "тг.",
-    },
-    {
-      class: "negative",
-      label: "Общая себестоимость",
-      value: fullReport.cost,
-      valueEnd: "тг.",
-    },
-    {
-      class: "negative",
-      label: "Налог",
-      value: fullReport.taxAmount,
-      valueEnd: "тг.",
-    },
-    {
-      class: "negative",
-      label: "Расходы на рекламу",
-      value: fullReport.advertisement,
-      valueEnd: "тг.",
-    },
-    {
-      class: `table-line total-row ${fullReport.incomePercent > 50 ? "positive" : "negative"}`,
-      label: "Примерная чистая прибыль",
-      value: fullReport.totalIncome,
-      valueEnd: "тг.",
-    },
-    {
-      class: `total-row ${fullReport.incomePercent > 50 ? "positive" : "negative"}`,
-      label: "Прибыль %",
-      value: fullReport.incomePercent,
-      valueEnd: "%",
-    },
-    {
-      class: false,
-      label: "DRR %",
-      value: fullReport.DRR,
-      valueEnd: "%",
-    },
-  ];
+  const finalResultsFields = buildFinalResultFields(fullReport);
+  const productRows = finalResultsFields.filter((field) => field.isCount);
+  const mainRows = finalResultsFields.filter((field) => !field.isCount);
 
   window.saveReport = async () => {
     try {
@@ -518,12 +354,11 @@ window.calculateTotal = async () => {
 
       const reportId = `report_${Date.now()}`;
       const userDocRef = doc(db, "userReports", user.uid, "reports", reportId);
-      const allDatesArr = [...dates];
       const reportWithMeta = {
         ...fullReport,
         userId: user.uid,
         createdAt: new Date().toISOString(),
-        fileName: `Отчет за ${allDatesArr[0]} - ${allDatesArr[allDatesArr.length - 1]}`,
+        fileName: `Отчет за ${dates[0]} - ${dates[dates.length - 1]}`,
       };
       await setDoc(userDocRef, reportWithMeta);
 
@@ -538,7 +373,37 @@ window.calculateTotal = async () => {
     <div class="container shadow-deep">
         <h2>📊 Сводный отчет:</h3>
         <table class="result-table">
-            ${finalResultsFields.map((field) => `<tr${field.class ? ` class="${field.class}"` : ""}><td>${field.label}:</td><td class="tableNumber">${getRightNumber(field.value)} ${field.valueEnd || ""}</td></tr>`).join("")}
+            ${mainRows
+              .map((field) => {
+                const renderedValue = `${formatNumber(field.value)} ${field.valueEnd || ""}`;
+                const baseRow = `<tr${field.class ? ` class="${field.class}"` : ""}><td>${escapeHtml(field.label)}:</td><td class="tableNumber">${renderedValue}</td></tr>`;
+                if (field.label !== "Продаж учтено" || productRows.length === 0) {
+                  return baseRow;
+                }
+
+                const salesRow = `<tr${field.class ? ` class="${field.class}"` : ""}>
+                  <td class="product-sales-label">
+                    ${escapeHtml(field.label)}:
+                    <button type="button" class="product-sales-inline-toggle" onclick="toggleProductSalesSpoiler(this)">подробнее</button>
+                  </td>
+                  <td class="tableNumber">${renderedValue}</td>
+                </tr>`;
+
+                return `${salesRow}
+                <tr class="product-sales-details-row">
+                  <td colspan="2">
+                    <table class="product-sales-table">
+                      ${productRows
+                        .map(
+                          (row) =>
+                            `<tr><td>${escapeHtml(row.label)}</td><td class="tableNumber">${row.value} ${row.valueEnd || ""}</td></tr>`,
+                        )
+                        .join("")}
+                    </table>
+                  </td>
+                </tr>`;
+              })
+              .join("")}
         </table>
         <button class="calculate-button" onclick="saveReport()" >Сохранить</button>
     </div>
